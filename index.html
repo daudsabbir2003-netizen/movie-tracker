@@ -76,7 +76,7 @@ footer{color:var(--muted);font-size:.72rem;text-align:center;margin-top:32px}
 .sh.in{animation:up .22s ease-out}
 @keyframes up{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
 @media (min-width:600px){.ov{align-items:center}.sh{border-radius:16px}}
-@media (prefers-reduced-motion:reduce){.sh.in,.sk{animation:none}.p img{transition:none}}
+@media (prefers-reduced-motion:reduce){.sh.in,.sk,.dr.in{animation:none}.p img{transition:none}}
 .x{position:absolute;top:10px;right:10px;font-size:26px}
 .top{display:flex;gap:14px;padding-right:28px}
 .top img,.ph{width:96px;border-radius:8px;flex:0 0 auto;aspect-ratio:2/3;background:var(--line);object-fit:cover}
@@ -95,19 +95,27 @@ h2{margin:0 0 4px;font-size:1.15rem;line-height:1.2}
 .bt{flex:1;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
 .bt i{display:block;height:100%;background:var(--accent)}
 .sr b{width:28px;text-align:right;font-weight:500}
-#menu{position:fixed;inset:0;z-index:60;background:var(--bg);overflow-y:auto;padding:calc(env(safe-area-inset-top) + 8px) 16px calc(24px + env(safe-area-inset-bottom))}
+/* side menu */
+#menu{position:fixed;inset:0;z-index:60;display:flex;justify-content:flex-end}
 #menu[hidden]{display:none}
-.mh{display:flex;justify-content:space-between;align-items:center;padding:8px 0 14px}
+.mbd{position:absolute;inset:0;background:rgba(0,0,0,.5)}
+.dr{position:relative;width:min(320px,85vw);height:100%;background:var(--bg);overflow-y:auto;padding:calc(env(safe-area-inset-top) + 12px) 16px calc(20px + env(safe-area-inset-bottom));box-shadow:-8px 0 24px rgba(0,0,0,.25);display:flex;flex-direction:column}
+.dr.in{animation:slide .22s ease-out}
+@keyframes slide{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.mh{display:flex;justify-content:space-between;align-items:center;padding:4px 0 14px}
 .mh h1{font-size:1.5rem;font-weight:800}
 .me{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:14px}
 .av{width:44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex:0 0 auto}
 .me span{word-break:break-all;font-size:.9rem}
-.mg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.mc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:left;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;gap:3px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
-.mc i{font-style:normal;font-size:1.6rem}
-.mc b{font-size:.95rem}
-.mc small{color:var(--muted)}
-.so{width:100%;margin-top:14px;padding:12px;border-radius:10px;border:0;background:var(--line);color:var(--ink);font-weight:600;cursor:pointer}
+.mi{width:100%;display:flex;align-items:center;gap:12px;background:none;border:0;border-radius:12px;padding:12px;color:var(--ink);text-align:left;cursor:pointer;margin-bottom:2px}
+.mi i{font-style:normal;font-size:1.4rem;width:30px;text-align:center}
+.mi b{font-size:.98rem;font-weight:600}
+.mi small{margin-left:auto;color:var(--muted);font-size:.8rem}
+.mi.on{background:var(--accent);color:#fff}
+.mi.on small{color:rgba(255,255,255,.85)}
+.so{width:100%;margin-top:auto;padding:12px;border-radius:10px;border:0;background:var(--line);color:var(--ink);font-weight:600;cursor:pointer}
+.dr .sep{height:1px;background:var(--line);margin:8px 0 14px;flex:0 0 auto}
+.dr .grow{flex:1;min-height:14px}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:12px;z-index:80;display:flex;gap:14px;align-items:center;max-width:92vw;font-size:.88rem;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 #toast[hidden]{display:none}
 #toast button{background:none;border:0;color:var(--accent);font-weight:700;cursor:pointer;padding:2px 4px}
@@ -131,7 +139,7 @@ const $=id=>document.getElementById(id);
 /* tab is one of now_playing | upcoming | popular | wl | mine | stats | search */
 let user=null,watched={},wl={},items=[],loading=false,note='',page=1,pages=1,req=0,timer=null,recov=false,hideW=false,busy=false;
 let tab='now_playing',sq='',fq='',sort='recent';
-let openId=null,cur=null,lastFocus=null,tt=null;
+let openId=null,cur=null,lastFocus=null,tt=null,afterPop=null;
 
 const TABS=[['now_playing','In cinemas'],['upcoming','Coming soon'],['popular','Popular']];
 const SORTS=[['recent','Recent'],['rating','Rating'],['title','Title'],['year','Year']];
@@ -384,7 +392,7 @@ function draw(){
 const refresh=()=>{draw();if(openId)renderSheet();if(!$('menu').hidden)openMenu()};
 
 /* ---------- Navigation + browser Back button ---------- */
-/* history states: null = home, {t:tab} = Watchlist/Watched/Stats page, {m:1} = menu open, {s:1} = movie sheet open */
+/* history states: null = home, {t:tab} = Watchlist/Watched/Stats page, {m:1,t?} = side menu open, {s:1} = movie sheet open */
 function goTab(v){
   const toLocal=v==='wl'||v==='mine'||v==='stats';
   const st=history.state||{};
@@ -398,6 +406,18 @@ function goTab(v){
   window.scrollTo(0,0);
   load();
 }
+/* used by the side menu and the home boxes */
+function menuGo(v){
+  const st=history.state||{};
+  closeMenu();
+  if(st.m&&st.t){
+    if(v==='now_playing'){history.go(-2);return}
+    afterPop=()=>goTab(v);
+    history.back();
+    return;
+  }
+  goTab(v);
+}
 function goHome(){
   if(history.state&&history.state.t){history.back();return}
   tab='now_playing';sq='';fq='';
@@ -405,18 +425,28 @@ function goHome(){
   load();
 }
 
-/* ---------- Menu (Facebook style) ---------- */
-const mc=(v,i,t,s)=>'<button class="mc" data-a="go" data-v="'+v+'"><i>'+i+'</i><b>'+t+'</b><small>'+s+'</small></button>';
+/* ---------- Side menu ---------- */
+const mi=(v,i,t,s,on)=>'<button class="mi'+(on?' on':'')+'" data-a="go" data-v="'+v+'"><i>'+i+'</i><b>'+t+'</b>'+(s?'<small>'+s+'</small>':'')+'</button>';
 function openMenu(){
   const m=$('menu'),e=user?user.email:'';
+  const fresh=m.hidden;
   const wn=Object.values(wl).filter(x=>!watched[x.tmdb_id]).length;
-  m.innerHTML='<div class="mh"><h1>Menu</h1><button class="circ" data-a="mclose" aria-label="Close menu">×</button></div>'+
+  const at=(tab==='wl'||tab==='mine'||tab==='stats')?tab:'now_playing';
+  m.innerHTML='<div class="mbd" data-a="mclose"></div>'+
+    '<div class="dr'+(fresh?' in':'')+'">'+
+    '<div class="mh"><h1>Menu</h1><button class="circ" data-a="mclose" aria-label="Close menu">×</button></div>'+
     '<div class="me"><div class="av">'+esc(e.charAt(0).toUpperCase())+'</div><span>'+esc(e)+'</span></div>'+
-    '<div class="mg">'+mc('wl','🎯','Watchlist',wn+' saved')+mc('mine','✅','Watched',Object.keys(watched).length+' movies')+
-    mc('stats','📊','Stats','Your numbers')+'<button class="mc" data-a="theme"><i>🌓</i><b>Dark / light</b><small>Switch theme</small></button></div>'+
-    '<button class="so" data-a="out">Sign out</button>';
-  if(m.hidden){
-    history.pushState({m:1},'');
+    mi('now_playing','🏠','Home','',at==='now_playing')+
+    mi('wl','🎯','Watchlist',String(wn),at==='wl')+
+    mi('mine','✅','Watched',String(Object.keys(watched).length),at==='mine')+
+    mi('stats','📊','Stats','',at==='stats')+
+    '<div class="sep"></div>'+
+    '<button class="mi" data-a="theme"><i>🌓</i><b>Dark / light</b></button>'+
+    '<div class="grow"></div>'+
+    '<button class="so" data-a="out" style="margin-top:14px">Sign out</button></div>';
+  if(fresh){
+    const st=history.state||{};
+    history.pushState(st.t?{m:1,t:st.t}:{m:1},'');
     m.hidden=false;document.body.style.overflow='hidden';
     const x=m.querySelector('.circ');if(x)x.focus();
   }
@@ -534,7 +564,7 @@ document.addEventListener('click',async e=>{
   if(!a)return;
   if(a==='menu')openMenu();
   else if(a==='mclose')dismissMenu();
-  else if(a==='go'){closeMenu();goTab(v)}
+  else if(a==='go')menuGo(v);
   else if(a==='tab'){tab=v;sq='';fq='';load()}
   else if(a==='home')goHome();
   else if(a==='retry'){load(items.length>0)}
@@ -604,6 +634,7 @@ window.addEventListener('popstate',e=>{
     openId=null;renderSheet();
     if(lastFocus&&lastFocus.isConnected&&lastFocus.focus)lastFocus.focus();
   }
+  if(afterPop){const f=afterPop;afterPop=null;f();return}
   if(s.s||s.m)return;
   if(s.t){
     if(tab!==s.t){tab=s.t;sq='';fq='';window.scrollTo(0,0);load()}
@@ -623,4 +654,4 @@ sb.auth.onAuthStateChange((ev,session)=>{
 });
 </script>
 </body>
-</html>
+  </html>
