@@ -47,7 +47,7 @@ const SUPABASE_KEY='sb_publishable_TM1ORjWIhpCfahAlNtNG0w_3qhtkg1Y';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const app=document.getElementById('app');
 let user=null,tab='now_playing',watched={},items=[],q='',note='';
-const TABS=[['now_playing','In cinemas'],['upcoming','Coming soon'],['popular','Popular'],['search','Search'],['mine','My list']];
+const TABS=[['now_playing','In cinemas'],['upcoming','Coming soon'],['popular','Popular'],['mine','My list']];
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 async function tmdb(path,p){
@@ -97,10 +97,10 @@ function authView(){
   };
 }
 function draw(){
-  let h='<nav>'+TABS.map(t=>'<button data-t="'+t[0]+'" class="'+(t[0]===tab?'on':'')+'">'+t[1]+(t[0]==='mine'?' ('+Object.keys(watched).length+')':'')+'</button>').join('')+'</nav>';
-  if(tab==='search')h+='<div class="row"><input id="q" placeholder="Search movies" value="'+esc(q)+'"><button class="btn" id="go" style="flex:0 0 auto;margin-bottom:8px">Search</button></div>';
+  let h='<div class="row"><input id="q" placeholder="Search movies" value="'+esc(q)+'"><button class="btn" id="go" style="flex:0 0 auto;margin-bottom:8px">Search</button></div>';
+  h+='<nav>'+TABS.map(t=>'<button data-t="'+t[0]+'" class="'+(t[0]===tab?'on':'')+'">'+t[1]+(t[0]==='mine'?' ('+Object.keys(watched).length+')':'')+'</button>').join('')+'</nav>';
   if(note)h+='<p class="msg err">'+esc(note)+'</p>';
-  else if(!items.length)h+='<p class="msg">'+(tab==='mine'?'Nothing yet. Mark a movie as watched from any tab.':tab==='search'?'Type a title to search.':'No movies found.')+'</p>';
+  else if(!items.length)h+='<p class="msg">'+(tab==='mine'?'Nothing yet. Mark a movie as watched from any tab.':tab==='search'?'No movies found.':'No movies found.')+'</p>';
   h+='<div class="grid">'+items.map(m=>{
     const w=watched[m.tmdb_id];
     const img=m.poster?'<img loading="lazy" alt="" src="https://image.tmdb.org/t/p/w342'+esc(m.poster)+'">':'<div class="noimg"></div>';
@@ -111,10 +111,15 @@ function draw(){
   h+='<p style="text-align:center"><button class="btn alt" id="out">Sign out</button></p>';
   app.innerHTML=h;
 }
+function doSearch(){
+  q=document.getElementById('q').value.trim();
+  tab=q?'search':'now_playing';
+  load();
+}
 app.addEventListener('click',async e=>{
   const t=e.target;
-  if(t.dataset.t){tab=t.dataset.t;load()}
-  else if(t.id==='go'){q=document.getElementById('q').value.trim();load()}
+  if(t.dataset.t){tab=t.dataset.t;q='';load()}
+  else if(t.id==='go'){doSearch()}
   else if(t.id==='out'){await sb.auth.signOut()}
   else if(t.dataset.w){
     const id=+t.dataset.w,w=watched[id];
@@ -128,7 +133,7 @@ app.addEventListener('click',async e=>{
     w.rating=val;draw();await sb.from('watched').update({rating:val}).eq('id',w.id);
   }
 });
-app.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='q'){q=e.target.value.trim();load()}});
+app.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='q'){doSearch()}});
 sb.auth.onAuthStateChange((ev,session)=>{
   user=session?session.user:null;
   if(!user){authView();return}
