@@ -68,16 +68,18 @@ async function load(){
   }catch(e){items=[];note=e.message}
   draw();
 }
-function authView(msg){
-  app.innerHTML='<p class="msg">Sign in to keep your own watched list.</p>'+
+function authView(msg,ok){
+  app.innerHTML='<p class="msg">Type your email and we will send you a link. Tap the link to sign in.</p>'+
   '<input id="em" type="email" placeholder="Email" autocomplete="email">'+
-  '<input id="pw" type="password" placeholder="Password (6+ characters)" autocomplete="current-password">'+
-  '<div class="row"><button class="btn" id="in">Sign in</button><button class="btn alt" id="up">Create account</button></div>'+
-  '<p class="msg err">'+esc(msg||'')+'</p>';
-  const creds=()=>({email:document.getElementById('em').value.trim(),password:document.getElementById('pw').value});
-  document.getElementById('in').onclick=async()=>{const r=await sb.auth.signInWithPassword(creds());if(r.error)authView(r.error.message)};
-  document.getElementById('up').onclick=async()=>{const r=await sb.auth.signUp(creds());
-    if(r.error)authView(r.error.message);else if(!r.data.session)authView('Check your email and tap the confirmation link, then sign in.')};
+  '<button class="btn" id="in" style="width:100%">Email me a sign-in link</button>'+
+  '<p class="msg'+(ok?'':' err')+'">'+esc(msg||'')+'</p>';
+  document.getElementById('in').onclick=async()=>{
+    const email=document.getElementById('em').value.trim();
+    if(!email){authView('Type your email first.');return}
+    const r=await sb.auth.signInWithOtp({email:email,options:{emailRedirectTo:location.origin}});
+    if(r.error)authView(r.error.message);
+    else authView('Link sent. Open your email and tap it.',true);
+  };
 }
 function draw(){
   let h='<nav>'+TABS.map(t=>'<button data-t="'+t[0]+'" class="'+(t[0]===tab?'on':'')+'">'+t[1]+(t[0]==='mine'?' ('+Object.keys(watched).length+')':'')+'</button>').join('')+'</nav>';
