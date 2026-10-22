@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14171f">
+<title>Movie Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#f3efe6;--ink:#1d2330;--muted:#6b6f7a;--card:#fffdf7;--accent:#c8382c;--line:#d9d2c0;--star:#e0a020}
+@media (prefers-color-scheme:dark){:root{--bg:#14171f;--ink:#f0ece2;--muted:#9a9eab;--card:#1e222d;--accent:#ff6a57;--line:#333948;--star:#f0b33a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:1.8rem;margin:8px 0 12px;letter-spacing:-.02em}
+input,button{font:inherit}
+input{width:100%;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:11px;margin-bottom:8px}
+.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:11px 14px;cursor:pointer}
+.alt{background:none;color:var(--ink);border:1px solid var(--line)}
+.row{display:flex;gap:8px}.row>*{flex:1}
+nav{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px}
+nav button{white-space:nowrap;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:20px;padding:8px 14px;cursor:pointer}
+nav button.on{background:var(--ink);color:var(--bg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.card img,.noimg{width:100%;aspect-ratio:2/3;object-fit:cover;background:var(--line);display:block}
+.card .i{padding:8px;display:flex;flex-direction:column;gap:6px;flex:1}
+.card b{font-size:.9rem;line-height:1.2}.card span{color:var(--muted);font-size:.8rem}
+.card .btn{margin-top:auto;padding:8px;font-size:.85rem}
+.card .btn.done{background:#2e7d4f}
+.st button{background:none;border:0;color:var(--line);font-size:22px;padding:0 1px;cursor:pointer}
+.st button.on{color:var(--star)}
+.msg{color:var(--muted);text-align:center;padding:24px 8px}
+.err{color:var(--accent)}
+footer{color:var(--muted);font-size:.75rem;text-align:center;margin-top:28px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Movie Tracker</h1>
+  <div id="app"></div>
+  <footer>This product uses the TMDB API but is not endorsed or certified by TMDB.</footer>
+</main>
+<script>
+const SUPABASE_URL='https://nnvlvfxxwlmghjvmclzo.supabase.co';
+const SUPABASE_KEY='sb_publishable_TM1ORjWIhpCfahAlNtNG0w_3qhtkg1Y';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const app=document.getElementById('app');
+let user=null,tab='now_playing',watched={},items=[],q='',note='';
+const TABS=[['now_playing','In cinemas'],['upcoming','Coming soon'],['popular','Popular'],['search','Search'],['mine','My list']];
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function tmdb(path,p){
+  const r=await fetch('/api/tmdb?'+new URLSearchParams(Object.assign({path:path},p||{})));
+  if(!r.ok)throw new Error('Could not load movies ('+r.status+')');
+  return ((await r.json()).results||[]).map(m=>({tmdb_id:m.id,title:m.title,poster:m.poster_path||'',year:(m.release_date||'').slice(0,4)}));
+}
+async function loadWatched(){
+  const r=await sb.from('watched').select('*').order('watched_at',{ascending:false});
+  watched={};(r.data||[]).forEach(w=>watched[w.tmdb_id]=w);
+}
+async function load(){
+  note='';
+  try{
+    if(tab==='mine')items=Object.values(watched);
+    else if(tab==='search')items=q?await tmdb('search/movie',{query:q}):[];
+    else items=await tmdb('movie/'+tab);
+  }catch(e){items=[];note=e.message}
+  draw();
+}
+function authView(msg){
+  app.innerHTML='<p class="msg">Sign in to keep your own watched list.</p>'+
+  '<input id="em" type="email" placeholder="Email" autocomplete="email">'+
+  '<input id="pw" type="password" placeholder="Password (6+ characters)" autocomplete="current-password">'+
+  '<div class="row"><button class="btn" id="in">Sign in</button><button class="btn alt" id="up">Create account</button></div>'+
+  '<p class="msg err">'+esc(msg||'')+'</p>';
+  const creds=()=>({email:document.getElementById('em').value.trim(),password:document.getElementById('pw').value});
+  document.getElementById('in').onclick=async()=>{const r=await sb.auth.signInWithPassword(creds());if(r.error)authView(r.error.message)};
+  document.getElementById('up').onclick=async()=>{const r=await sb.auth.signUp(creds());
+    if(r.error)authView(r.error.message);else if(!r.data.session)authView('Check your email and tap the confirmation link, then sign in.')};
+}
+function draw(){
+  let h='<nav>'+TABS.map(t=>'<button data-t="'+t[0]+'" class="'+(t[0]===tab?'on':'')+'">'+t[1]+(t[0]==='mine'?' ('+Object.keys(watched).length+')':'')+'</button>').join('')+'</nav>';
+  if(tab==='search')h+='<div class="row"><input id="q" placeholder="Search movies" value="'+esc(q)+'"><button class="btn" id="go" style="flex:0 0 auto;margin-bottom:8px">Search</button></div>';
+  if(note)h+='<p class="msg err">'+esc(note)+'</p>';
+  else if(!items.length)h+='<p class="msg">'+(tab==='mine'?'Nothing yet. Mark a movie as watched from any tab.':tab==='search'?'Type a title to search.':'No movies found.')+'</p>';
+  h+='<div class="grid">'+items.map(m=>{
+    const w=watched[m.tmdb_id];
+    const img=m.poster?'<img loading="lazy" alt="" src="https://image.tmdb.org/t/p/w342'+esc(m.poster)+'">':'<div class="noimg"></div>';
+    let stars='';
+    if(w)stars='<div class="st">'+[1,2,3,4,5].map(n=>'<button data-r="'+n+'" data-id="'+m.tmdb_id+'" class="'+(n<=w.rating?'on':'')+'" aria-label="'+n+' stars">★</button>').join('')+'</div>';
+    return '<div class="card">'+img+'<div class="i"><b>'+esc(m.title)+'</b><span>'+esc(m.year)+'</span>'+stars+
+      '<button class="btn'+(w?' done':'')+'" data-w="'+m.tmdb_id+'">'+(w?'Watched ✓':'Mark watched')+'</button></div></div>'}).join('')+'</div>';
+  h+='<p style="text-align:center"><button class="btn alt" id="out">Sign out</button></p>';
+  app.innerHTML=h;
+}
+app.addEventListener('click',async e=>{
+  const t=e.target;
+  if(t.dataset.t){tab=t.dataset.t;load()}
+  else if(t.id==='go'){q=document.getElementById('q').value.trim();load()}
+  else if(t.id==='out'){await sb.auth.signOut()}
+  else if(t.dataset.w){
+    const id=+t.dataset.w,w=watched[id];
+    if(w){await sb.from('watched').delete().eq('id',w.id);delete watched[id];if(tab==='mine')items=items.filter(x=>x.tmdb_id!==id)}
+    else{const m=items.find(x=>x.tmdb_id===id);
+      const r=await sb.from('watched').insert({tmdb_id:id,title:m.title,poster:m.poster,year:m.year}).select().single();
+      if(r.data)watched[id]=r.data;else note=(r.error&&r.error.message)||'Could not save'}
+    draw();
+  }else if(t.dataset.r){
+    const id=+t.dataset.id,n=+t.dataset.r,w=watched[id],val=w.rating===n?0:n;
+    w.rating=val;draw();await sb.from('watched').update({rating:val}).eq('id',w.id);
+  }
+});
+app.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='q'){q=e.target.value.trim();load()}});
+sb.auth.onAuthStateChange(async(ev,session)=>{
+  user=session?session.user:null;
+  if(!user){authView();return}
+  await loadWatched();load();
+});
+</script>
+</body>
+</html>
