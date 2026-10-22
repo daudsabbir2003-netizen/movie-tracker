@@ -53,10 +53,9 @@ nav button.on{color:var(--ink);border-color:var(--accent)}
 .p img.l{opacity:1}
 .sk{animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.45}}
-.qm{position:absolute;top:5px;right:5px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.62);color:#fff;font-size:16px;line-height:28px;padding:0;text-align:center;cursor:pointer}
-.qm.on{background:#2e7d4f}
-.bk{position:absolute;top:5px;left:5px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.62);font-size:13px;line-height:26px;text-align:center;pointer-events:none}
-.mv{width:100%;margin-top:6px;background:#2e7d4f;color:#fff;border:0;border-radius:8px;padding:7px 0;font-size:.78rem;font-weight:600;cursor:pointer}
+.stt{position:absolute;top:5px;right:5px;width:28px;height:28px;border-radius:50%;font-size:15px;font-weight:700;line-height:28px;text-align:center;color:#fff;pointer-events:none}
+.stt.w{background:#2e7d4f}
+.stt.l{background:#e0a020}
 .t{font-size:.8rem;font-weight:500;margin-top:6px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .y{font-size:.72rem;color:var(--muted);margin-top:2px}
 .btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:10px 16px;cursor:pointer}
@@ -292,12 +291,11 @@ function shell(){
     '<div id="list" aria-live="polite"></div>';
 }
 function cardHtml(m){
-  const w=watched[m.tmdb_id],id=m.tmdb_id;
+  const w=watched[m.tmdb_id],id=m.tmdb_id,l=!w&&wl[id];
   const img=m.poster?'<img loading="lazy" alt="" onload="this.classList.add(\'l\')" src="https://image.tmdb.org/t/p/w342'+esc(m.poster)+'">':'';
-  return '<div class="c" data-a="open" data-v="'+id+'"><div class="p" role="button" tabindex="0" aria-label="'+esc(m.title)+'">'+img+(!w&&wl[id]?'<span class="bk" aria-hidden="true">🔖</span>':'')+'</div>'+
-    '<button class="qm'+(w?' on':'')+'" data-a="quick" data-v="'+id+'" aria-label="'+(w?'Remove from watched':'Mark watched')+'">'+(w?'✓':'+')+'</button>'+
-    '<div class="t">'+esc(m.title)+'</div><div class="y">'+esc(m.year)+(w&&w.rating?' · ★'+w.rating:'')+'</div>'+
-    (tab==='wl'&&!w?'<button class="mv" data-a="move" data-v="'+id+'">✓ Watched</button>':'')+'</div>';
+  const badge=w?'<span class="stt w" aria-hidden="true">✓</span>':(l?'<span class="stt l" aria-hidden="true">🎯</span>':'');
+  return '<div class="c" data-a="open" data-v="'+id+'"><div class="p" role="button" tabindex="0" aria-label="'+esc(m.title+(w?' (watched)':l?' (on watchlist)':''))+'">'+img+badge+'</div>'+
+    '<div class="t">'+esc(m.title)+'</div><div class="y">'+esc(m.year)+(w&&w.rating?' · ★'+w.rating:'')+'</div></div>';
 }
 function localList(){
   const s=fq.trim().toLowerCase();
@@ -348,11 +346,13 @@ function draw(){
   inp.placeholder=tab==='mine'?'Filter watched movies':tab==='wl'?'Filter your watchlist':'Search movies';
   syncCl();
   const wn=Object.values(wl).filter(m=>!watched[m.tmdb_id]).length,dn=Object.keys(watched).length;
-  $('sp').innerHTML=[['wl','🔖','Watchlist',wn],['mine','✅','Watched',dn]].map(x=>
+  $('sp').innerHTML=[['wl','🎯','Watchlist',wn],['mine','✅','Watched',dn]].map(x=>
     '<button class="sb'+(tab===x[0]?' on':'')+'" data-a="go" data-v="'+x[0]+'"><i>'+x[1]+'</i><span><b>'+x[2]+'</b><small>'+x[3]+' movie'+(x[3]===1?'':'s')+'</small></span></button>').join('');
   $('find').style.display=stats?'none':'';
   $('so').style.display=tab==='mine'?'':'none';
   $('so').value=sort;
+  $('sp').style.display=(local||stats)?'none':'';
+  $('nav').style.display=(local||stats)?'none':'';
   $('hw').style.display=(local||stats)?'none':'';
   $('hwc').checked=hideW;
   $('nav').innerHTML=TABS.map(t=>'<button data-a="tab" data-v="'+t[0]+'" class="'+(t[0]===tab?'on':'')+'">'+t[1]+'</button>').join('');
@@ -388,7 +388,7 @@ function openMenu(){
   const wn=Object.values(wl).filter(x=>!watched[x.tmdb_id]).length;
   m.innerHTML='<div class="mh"><h1>Menu</h1><button class="circ" data-a="mclose" aria-label="Close menu">×</button></div>'+
     '<div class="me"><div class="av">'+esc(e.charAt(0).toUpperCase())+'</div><span>'+esc(e)+'</span></div>'+
-    '<div class="mg">'+mc('wl','🔖','Watchlist',wn+' saved')+mc('mine','✅','Watched',Object.keys(watched).length+' movies')+
+    '<div class="mg">'+mc('wl','🎯','Watchlist',wn+' saved')+mc('mine','✅','Watched',Object.keys(watched).length+' movies')+
     mc('stats','📊','Stats','Your numbers')+'<button class="mc" data-a="theme"><i>🌓</i><b>Dark / light</b><small>Switch theme</small></button></div>'+
     '<button class="so" data-a="out">Sign out</button>';
   if(m.hidden){m.hidden=false;document.body.style.overflow='hidden';const x=m.querySelector('.circ');if(x)x.focus()}
@@ -516,8 +516,6 @@ document.addEventListener('click',async e=>{
   else if(a==='out')await sb.auth.signOut();
   else if(a==='theme')toggleTheme();
   else if(a==='watch')await toggleW(openId,cur);
-  else if(a==='quick')await toggleW(+v,findBase(+v));
-  else if(a==='move')await toggleW(+v,findBase(+v));
   else if(a==='wl')toggleWl();
   else if(a==='star')await rate(+v);
   else if(a==='undo'){const t=$('toast'),f=t._fn;t.hidden=true;t._fn=null;if(f)await f()}
