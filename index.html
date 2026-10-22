@@ -129,10 +129,10 @@ app.addEventListener('click',async e=>{
   }
 });
 app.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='q'){q=e.target.value.trim();load()}});
-sb.auth.onAuthStateChange(async(ev,session)=>{
+sb.auth.onAuthStateChange((ev,session)=>{
   user=session?session.user:null;
   if(!user){authView();return}
-  await loadWatched();load();
+  setTimeout(async()=>{await loadWatched();load()},0);
 });
 </script>
 </body>
