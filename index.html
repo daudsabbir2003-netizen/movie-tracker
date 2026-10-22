@@ -138,6 +138,8 @@ const SORTS=[['recent','Recent'],['rating','Rating'],['title','Title'],['year','
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const isLocal=()=>tab==='mine'||tab==='wl';
 try{const t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}
+/* start every page load with a clean history state */
+try{history.replaceState(null,'')}catch(e){}
 
 /* ---------- Toast (with optional Undo) ---------- */
 function toast(msg,label,fn,ms){
@@ -381,6 +383,28 @@ function draw(){
 }
 const refresh=()=>{draw();if(openId)renderSheet();if(!$('menu').hidden)openMenu()};
 
+/* ---------- Navigation + browser Back button ---------- */
+/* history states: null = home, {t:tab} = Watchlist/Watched/Stats page, {m:1} = menu open, {s:1} = movie sheet open */
+function goTab(v){
+  const toLocal=v==='wl'||v==='mine'||v==='stats';
+  const st=history.state||{};
+  tab=v;sq='';fq='';
+  if(toLocal){
+    if(st.t||st.m)history.replaceState({t:v},'');
+    else history.pushState({t:v},'');
+  }else if(st.t||st.m){
+    history.replaceState(null,'');
+  }
+  window.scrollTo(0,0);
+  load();
+}
+function goHome(){
+  if(history.state&&history.state.t){history.back();return}
+  tab='now_playing';sq='';fq='';
+  window.scrollTo(0,0);
+  load();
+}
+
 /* ---------- Menu (Facebook style) ---------- */
 const mc=(v,i,t,s)=>'<button class="mc" data-a="go" data-v="'+v+'"><i>'+i+'</i><b>'+t+'</b><small>'+s+'</small></button>';
 function openMenu(){
@@ -391,11 +415,19 @@ function openMenu(){
     '<div class="mg">'+mc('wl','🎯','Watchlist',wn+' saved')+mc('mine','✅','Watched',Object.keys(watched).length+' movies')+
     mc('stats','📊','Stats','Your numbers')+'<button class="mc" data-a="theme"><i>🌓</i><b>Dark / light</b><small>Switch theme</small></button></div>'+
     '<button class="so" data-a="out">Sign out</button>';
-  if(m.hidden){m.hidden=false;document.body.style.overflow='hidden';const x=m.querySelector('.circ');if(x)x.focus()}
+  if(m.hidden){
+    history.pushState({m:1},'');
+    m.hidden=false;document.body.style.overflow='hidden';
+    const x=m.querySelector('.circ');if(x)x.focus();
+  }
 }
 function closeMenu(){
   $('menu').hidden=true;
   if(!openId)document.body.style.overflow='';
+}
+function dismissMenu(){
+  if(history.state&&history.state.m)history.back();
+  else closeMenu();
 }
 
 /* ---------- Movie sheet ---------- */
@@ -488,6 +520,7 @@ function startSearch(s){
 }
 function resetAll(){
   openId=null;renderSheet();closeMenu();
+  try{history.replaceState(null,'')}catch(e){}
   watched={};wl={};items=[];tab='now_playing';sq='';fq='';
 }
 function enter(){
@@ -500,10 +533,10 @@ document.addEventListener('click',async e=>{
   const el=e.target.closest('[data-a]'),a=el&&el.dataset.a,v=el&&el.dataset.v;
   if(!a)return;
   if(a==='menu')openMenu();
-  else if(a==='mclose')closeMenu();
-  else if(a==='go'){closeMenu();tab=v;sq='';fq='';window.scrollTo(0,0);load()}
+  else if(a==='mclose')dismissMenu();
+  else if(a==='go'){closeMenu();goTab(v)}
   else if(a==='tab'){tab=v;sq='';fq='';load()}
-  else if(a==='home'){tab='now_playing';sq='';fq='';window.scrollTo(0,0);load()}
+  else if(a==='home')goHome();
   else if(a==='retry'){load(items.length>0)}
   else if(a==='clr'){
     const i=$('q');i.value='';
@@ -521,7 +554,7 @@ document.addEventListener('click',async e=>{
   else if(a==='undo'){const t=$('toast'),f=t._fn;t.hidden=true;t._fn=null;if(f)await f()}
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){if(!$('menu').hidden){closeMenu();return}if(openId){closeSheet();return}}
+  if(e.key==='Escape'){if(!$('menu').hidden){dismissMenu();return}if(openId){closeSheet();return}}
   if(e.key==='Tab'&&openId){
     const f=[].slice.call(sheet.querySelectorAll('button,a[href],input,[tabindex="0"]')).filter(x=>!x.disabled);
     if(!f.length)return;
@@ -563,8 +596,21 @@ document.addEventListener('change',e=>{
 document.addEventListener('visibilitychange',()=>{
   if(!document.hidden&&user&&$('list'))Promise.all([loadWatched(),loadPrefs()]).then(()=>{reconcile();refresh()});
 });
-window.addEventListener('popstate',()=>{
-  if(openId){openId=null;renderSheet();if(lastFocus&&lastFocus.isConnected)lastFocus.focus()}
+/* browser / phone Back button */
+window.addEventListener('popstate',e=>{
+  const s=e.state||{};
+  if(!$('menu').hidden&&!s.m)closeMenu();
+  if(openId&&!s.s){
+    openId=null;renderSheet();
+    if(lastFocus&&lastFocus.isConnected&&lastFocus.focus)lastFocus.focus();
+  }
+  if(s.s||s.m)return;
+  if(s.t){
+    if(tab!==s.t){tab=s.t;sq='';fq='';window.scrollTo(0,0);load()}
+  }else if(isLocal()||tab==='stats'){
+    tab='now_playing';sq='';fq='';
+    window.scrollTo(0,0);load();
+  }
 });
 sb.auth.onAuthStateChange((ev,session)=>{
   const u=session?session.user:null;
