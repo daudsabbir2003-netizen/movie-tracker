@@ -68,17 +68,32 @@ async function load(){
   }catch(e){items=[];note=e.message}
   draw();
 }
-function authView(msg,ok){
-  app.innerHTML='<p class="msg">Type your email and we will send you a link. Tap the link to sign in.</p>'+
+function authView(){
+  app.innerHTML='<p class="msg">Sign in or create an account to keep your own watched list.</p>'+
   '<input id="em" type="email" placeholder="Email" autocomplete="email">'+
-  '<button class="btn" id="in" style="width:100%">Email me a sign-in link</button>'+
-  '<p class="msg'+(ok?'':' err')+'">'+esc(msg||'')+'</p>';
+  '<input id="pw" type="password" placeholder="Password (6+ characters)" autocomplete="current-password">'+
+  '<div class="row"><button class="btn" id="in">Sign in</button><button class="btn alt" id="up">Create account</button></div>'+
+  '<p class="msg err" id="am"></p>';
+  const em=document.getElementById('em'),pw=document.getElementById('pw'),am=document.getElementById('am');
+  const say=t=>{am.textContent=t||''};
+  const check=()=>{
+    const email=em.value.trim(),password=pw.value;
+    if(!email||!password){say('Type your email and password first.');return null}
+    if(password.length<6){say('Password needs at least 6 characters.');return null}
+    return {email:email,password:password};
+  };
   document.getElementById('in').onclick=async()=>{
-    const email=document.getElementById('em').value.trim();
-    if(!email){authView('Type your email first.');return}
-    const r=await sb.auth.signInWithOtp({email:email,options:{emailRedirectTo:location.origin}});
-    if(r.error)authView(r.error.message);
-    else authView('Link sent. Open your email and tap it.',true);
+    const c=check();if(!c)return;
+    say('Signing in...');
+    const r=await sb.auth.signInWithPassword(c);
+    if(r.error)say(r.error.message);
+  };
+  document.getElementById('up').onclick=async()=>{
+    const c=check();if(!c)return;
+    say('Creating account...');
+    const r=await sb.auth.signUp(c);
+    if(r.error)say(r.error.message);
+    else if(!r.data.session)say('Account created. Now tap Sign in.');
   };
 }
 function draw(){
