@@ -47,25 +47,37 @@ const SUPABASE_KEY='sb_publishable_TM1ORjWIhpCfahAlNtNG0w_3qhtkg1Y';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const app=document.getElementById('app');
 let user=null,tab='now_playing',watched={},items=[],q='',note='';
+let page=1,pages=1; // current TMDB page and total pages for the current list
 const TABS=[['now_playing','In cinemas'],['upcoming','Coming soon'],['popular','Popular'],['mine','My list']];
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 async function tmdb(path,p){
-  const r=await fetch('/api/tmdb?'+new URLSearchParams(Object.assign({path:path},p||{})));
+  const r=await fetch('/api/tmdb?'+new URLSearchParams(Object.assign({path:path,page:page},p||{})));
   if(!r.ok)throw new Error('Could not load movies ('+r.status+')');
-  return ((await r.json()).results||[]).map(m=>({tmdb_id:m.id,title:m.title,poster:m.poster_path||'',year:(m.release_date||'').slice(0,4)}));
+  const j=await r.json();
+  pages=Math.min(j.total_pages||1,500);
+  return (j.results||[]).map(m=>({tmdb_id:m.id,title:m.title,poster:m.poster_path||'',year:(m.release_date||'').slice(0,4)}));
 }
 async function loadWatched(){
   const r=await sb.from('watched').select('*').order('watched_at',{ascending:false});
   watched={};(r.data||[]).forEach(w=>watched[w.tmdb_id]=w);
 }
-async function load(){
+async function load(more){
   note='';
+  if(more)page++;else{page=1;pages=1}
   try{
-    if(tab==='mine')items=Object.values(watched);
-    else if(tab==='search')items=q?await tmdb('search/movie',{query:q}):[];
-    else items=await tmdb('movie/'+tab);
-  }catch(e){items=[];note=e.message}
+    let list;
+    if(tab==='mine')list=Object.values(watched);
+    else if(tab==='search')list=q?await tmdb('search/movie',{query:q}):[];
+    else list=await tmdb('movie/'+tab);
+    if(more){
+      const seen=new Set(items.map(x=>x.tmdb_id));
+      items=items.concat(list.filter(x=>!seen.has(x.tmdb_id)));
+    }else items=list;
+  }catch(e){
+    if(more)page--;else items=[];
+    note=e.message;
+  }
   draw();
 }
 function authView(){
@@ -108,6 +120,7 @@ function draw(){
     if(w)stars='<div class="st">'+[1,2,3,4,5].map(n=>'<button data-r="'+n+'" data-id="'+m.tmdb_id+'" class="'+(n<=w.rating?'on':'')+'" aria-label="'+n+' stars">★</button>').join('')+'</div>';
     return '<div class="card">'+img+'<div class="i"><b>'+esc(m.title)+'</b><span>'+esc(m.year)+'</span>'+stars+
       '<button class="btn'+(w?' done':'')+'" data-w="'+m.tmdb_id+'">'+(w?'Watched ✓':'Mark watched')+'</button></div></div>'}).join('')+'</div>';
+  if(tab!=='mine'&&items.length&&page<pages)h+='<p style="text-align:center;margin-top:16px"><button class="btn alt" id="more">See more</button></p>';
   h+='<p style="text-align:center"><button class="btn alt" id="out">Sign out</button></p>';
   app.innerHTML=h;
 }
@@ -120,6 +133,7 @@ app.addEventListener('click',async e=>{
   const t=e.target;
   if(t.dataset.t){tab=t.dataset.t;q='';load()}
   else if(t.id==='go'){doSearch()}
+  else if(t.id==='more'){t.disabled=true;t.textContent='Loading...';await load(true)}
   else if(t.id==='out'){await sb.auth.signOut()}
   else if(t.dataset.w){
     const id=+t.dataset.w,w=watched[id];
