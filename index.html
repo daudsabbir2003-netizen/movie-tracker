@@ -371,7 +371,7 @@ function draw(){
   else if(tab==='wl')c='Watchlist';
   else if(tab==='mine')c='Watched';
   else if(stats)c='Your stats';
-  $('ctx').innerHTML=c?'<div class="ctx"><span>'+esc(c)+'</span><button data-a="home" aria-label="Close">×</button></div>':'';
+  $('ctx').innerHTML=c?'<div class="ctx"><span>'+esc(c)+'</span>'+(tab==='search'?'<button data-a="home" aria-label="Close">×</button>':'')+'</div>':'';
   let h='',more=false;
   if(io)io.disconnect();
   if(stats)h=statsHtml();
@@ -654,4 +654,4 @@ sb.auth.onAuthStateChange((ev,session)=>{
 });
 </script>
 </body>
-  </html>
+</html>
